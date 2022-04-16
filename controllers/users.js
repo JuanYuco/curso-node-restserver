@@ -1,38 +1,60 @@
 const { response } = require('express');
+const User = require('../models/user');
+const bcryptjs = require('bcryptjs');
 
-const usersGet = ( req, res = response ) => {
-    const { q, nombre, apiKey, page = 1, limit = 10 } = req.query;
+const usersGet = async( req, res = response ) => {
+    const { limit = 5, start = 0 } = req.query;
+    const query = { state: true };
+
+    const [ users, total ] = await Promise.all([
+        User.find(query)
+            .skip( Number(start) )
+            .limit( Number(limit) ),
+        User.countDocuments(query)
+    ]);
     res.json({
-        "msg": "get Api",
-        q,
-        nombre,
-        apiKey,
-        page,
-        limit
+        total,
+        users
     });
 }
 
-const usersPut = (req, res = response ) => {
+const usersPut = async(req, res = response ) => {
     const id = req.params.id;
-    res.status(400).json({
-        "msg": "put Api",
-        id
-    });
+    const { _id, password, google, ...body } = req.body;
+
+    if ( password ) {
+        const salt = bcryptjs.genSaltSync();
+        body.password = bcryptjs.hashSync( password, salt );
+    }
+
+    const user = await User.findByIdAndUpdate( id, body );
+
+    res.status(400).json(user);
 }
 
-const usersPost = (req, res = response ) => {
-    const { nombre, edad } = req.body; 
-    res.status(201).json({
-        "msg": "post Api",
-        nombre,
-        edad
+const usersPost = async(req, res = response ) => {
+    const { name, email, password, role } = req.body;
+    const user = new User({
+        name,
+        email,
+        password,
+        role
     });
+
+    const salt = bcryptjs.genSaltSync();
+    user.password = bcryptjs.hashSync( password, salt );
+
+    await user.save();
+    res.status(201).json(user);
 }
 
-const usersDelete = (req, res = response ) => { 
-    res.json({
-        "msg": "delete Api"
-    });
+const usersDelete = async(req, res = response ) => {
+    const { id } = req.params;
+    // Borrar fisicamente
+    // const user = await User.findByIdAndDelete( id );
+
+    const user = await User.findByIdAndUpdate( id, { state: false } );
+    res.json(user);
 }
 
 module.exports = {
